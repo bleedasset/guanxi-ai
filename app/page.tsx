@@ -25,6 +25,8 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [assessment, setAssessment] = useState<Assessment | null>(null);
+  const [streamingText, setStreamingText] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
 
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
@@ -33,6 +35,9 @@ export default function Home() {
     setMessages(updatedMessages);
     setInput("");
     setLoading(true);
+    setStreamingText("");
+    setIsStreaming(true);
+
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -40,14 +45,27 @@ export default function Home() {
         messages: updatedMessages.map((m) => ({ role: m.role, content: m.content })),
       }),
     });
+
     const data = await res.json();
-    setMessages([...updatedMessages, {
-      role: "assistant",
-      content: data.reply,
-      chinese: data.chinese,
-      feedback: data.feedback,
-    }]);
-    setLoading(false);
+    const fullText = data.reply;
+    let i = 0;
+
+    const interval = setInterval(() => {
+      i++;
+      setStreamingText(fullText.slice(0, i));
+      if (i >= fullText.length) {
+        clearInterval(interval);
+        setIsStreaming(false);
+        setStreamingText("");
+        setMessages([...updatedMessages, {
+          role: "assistant",
+          content: data.reply,
+          chinese: data.chinese,
+          feedback: data.feedback,
+        }]);
+        setLoading(false);
+      }
+    }, 18);
   };
 
   const getAssessment = async () => {
@@ -80,6 +98,8 @@ export default function Home() {
       </div>
     );
   };
+
+  const userCount = messages.filter(m => m.role === "user").length;
 
   return (
     <main className="min-h-screen bg-gray-950 text-white flex flex-col items-center p-6">
@@ -121,6 +141,22 @@ export default function Home() {
 
       {!assessment && (
         <>
+          <div className="w-full max-w-2xl mb-4">
+            <div className="flex justify-between text-xs text-gray-500 mb-1">
+              <span>Conversation progress</span>
+              <span>{Math.min(userCount, 4)} / 4 exchanges</span>
+            </div>
+            <div className="w-full bg-gray-800 rounded-full h-1.5">
+              <div
+                className="bg-red-500 h-1.5 rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(userCount / 4 * 100, 100)}%` }}
+              />
+            </div>
+            {userCount >= 4 && (
+              <p className="text-xs text-yellow-400 mt-1">✓ Ready for assessment</p>
+            )}
+          </div>
+
           <div className="w-full max-w-2xl flex flex-col gap-4 mb-4 min-h-[400px]">
             {messages.length === 0 && (
               <div className="text-center text-gray-600 mt-20">
@@ -151,7 +187,14 @@ export default function Home() {
               </div>
             ))}
 
-            {loading && (
+            {isStreaming && (
+              <div className="bg-gray-800 self-start px-4 py-3 rounded-2xl max-w-[80%] text-sm leading-relaxed">
+                <p className="text-xs text-gray-400 mb-1 font-semibold">Wei Mingzhi</p>
+                <p>{streamingText}<span className="animate-pulse">▌</span></p>
+              </div>
+            )}
+
+            {loading && !isStreaming && (
               <div className="bg-gray-800 self-start px-4 py-3 rounded-2xl text-sm text-gray-400">
                 Wei Mingzhi is thinking...
               </div>
@@ -175,7 +218,7 @@ export default function Home() {
             </button>
           </div>
 
-          {messages.length >= 4 && (
+          {userCount >= 4 && (
             <button
               onClick={getAssessment}
               disabled={loading}
