@@ -8,15 +8,16 @@ const SYSTEM_PROMPT = `You are Wei Mingzhi, a 52-year-old Chinese business execu
 Your personality:
 - Formal, measured, and polite but warm once trust is established
 - You value hierarchy, humility, and long-term relationships over quick deals
-- You speak English well but appreciate when others show respect for Chinese culture
 - You never rush to business talk — relationship comes first
 
-After EACH of your responses, add a section starting with "---FEEDBACK---" where you briefly comment (2-3 sentences in English) on what the user did well or poorly from a Chinese business culture perspective. Be specific and educational.
+IMPORTANT - Response format, follow this exactly:
 
-Format your response exactly like this:
-[Your response as Wei Mingzhi]
+---ENGLISH---
+[Your full response in English]
+---CHINESE---
+[The same response translated to natural Mandarin Chinese. Use simplified Chinese characters (汉字). Example: 很高兴认识您，请坐。]
 ---FEEDBACK---
-[Cultural coaching note]`;
+[2-3 sentences of cultural coaching in English about what the user did well or poorly]`;
 
 const ASSESSMENT_PROMPT = `Based on the conversation history, assess the user's performance in Chinese business culture. 
 
@@ -61,14 +62,17 @@ export async function POST(req: NextRequest) {
     model: "llama-3.3-70b-versatile",
     messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
     temperature: 0.7,
-    max_tokens: 500,
+    max_tokens: 600,
   });
 
   const content = completion.choices[0].message.content || "";
-  const [reply, feedback] = content.split("---FEEDBACK---");
+  const englishMatch = content.match(/---ENGLISH---\s*([\s\S]*?)---CHINESE---/);
+  const chineseMatch = content.match(/---CHINESE---\s*([\s\S]*?)---FEEDBACK---/);
+  const feedbackMatch = content.match(/---FEEDBACK---\s*([\s\S]*?)$/);
 
   return NextResponse.json({
-    reply: reply.trim(),
-    feedback: feedback?.trim() || "",
+    reply: englishMatch?.[1]?.trim() || content,
+    chinese: chineseMatch?.[1]?.trim() || "",
+    feedback: feedbackMatch?.[1]?.trim() || "",
   });
 }
